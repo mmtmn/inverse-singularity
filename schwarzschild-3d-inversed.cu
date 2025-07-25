@@ -6,8 +6,8 @@
 #include <cmath>
 #include <ctime>
 
-const int WIDTH = 1000, HEIGHT = 1000;
-const int NUM_PARTICLES = 300000;
+const int WIDTH = 1920, HEIGHT = 1080;
+const int NUM_PARTICLES = 9999999;
 const float GM = 5.0f;
 const float DT = 0.02f;
 
@@ -22,21 +22,25 @@ Particle* h_particles = new Particle[NUM_PARTICLES];
 curandState* d_states;
 
 // Camera
-float rotX = 20.0f, rotY = 0.0f, zoom = -250.0f;
+float camX = 0, camY = 0, camZ = 200;
+float camYaw = 0, camPitch = 0;
+bool keys[256] = { false };
 int lastX, lastY;
 bool dragging = false;
 
-__device__ float3 spherical_to_cartesian(float r, float theta, float phi) {
-    return make_float3(
+// Host version of spherical to cartesian
+float3 spherical_to_cartesian_host(float r, float theta, float phi) {
+    return {
         r * sinf(phi) * cosf(theta),
         r * cosf(phi),
         r * sinf(phi) * sinf(theta)
-    );
+    };
 }
 
 __global__ void init_particles(Particle* p, curandState* states, int seed) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= NUM_PARTICLES) return;
+
     curand_init(seed, i, 0, &states[i]);
 
     float r0 = 2.0f + curand_uniform(&states[i]) * 10.0f;
@@ -56,7 +60,7 @@ __global__ void update_geodesics(Particle* p) {
 
     float r = p[i].r;
     float f = 1.0f + 2.0f * GM / r;
-    float acc = -GM / (r * r);
+    float acc = -GM / (r * r);  // repulsive
 
     p[i].dr += acc * DT;
     p[i].r += p[i].dr * f * DT;
@@ -66,32 +70,60 @@ __global__ void update_geodesics(Particle* p) {
     if (p[i].r > 100.0f) p[i].color = 0.2f;
 }
 
+void update_camera() {
+    float speed = 2.0f;
+    float yawRad = camYaw * M_PI / 180.0f;
+    float pitchRad = camPitch * M_PI / 180.0f;
+
+    float dx = cosf(yawRad);
+    float dz = sinf(yawRad);
+
+    if (keys['w']) { camX += dx * speed; camZ += dz * speed; }
+    if (keys['s']) { camX -= dx * speed; camZ -= dz * speed; }
+    if (keys['a']) { camX += dz * speed; camZ -= dx * speed; }
+    if (keys['d']) { camX -= dz * speed; camZ += dx * speed; }
+    if (keys['q']) { camY -= speed; }
+    if (keys['e']) { camY += speed; }
+}
+
 void display() {
+    update_camera();
     update_geodesics<<<(NUM_PARTICLES + 255) / 256, 256>>>(d_particles);
     cudaMemcpy(h_particles, d_particles, NUM_PARTICLES * sizeof(Particle), cudaMemcpyDeviceToHost);
 
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glLoadIdentity();
-    glTranslatef(0, 0, zoom);
-    glRotatef(rotX, 1, 0, 0);
-    glRotatef(rotY, 0, 1, 0);
+
+    float yawRad = camYaw * M_PI / 180.0f;
+    float pitchRad = camPitch * M_PI / 180.0f;
+    float lx = cosf(pitchRad) * cosf(yawRad);
+    float ly = sinf(pitchRad);
+    float lz = cosf(pitchRad) * sinf(yawRad);
+
+    gluLookAt(camX, camY, camZ, camX + lx, camY + ly, camZ + lz, 0, 1, 0);
 
     glBegin(GL_POINTS);
     for (int i = 0; i < NUM_PARTICLES; ++i) {
         Particle& p = h_particles[i];
-        float3 pos = make_float3(
-            p.r * sinf(p.phi) * cosf(p.theta),
-            p.r * cosf(p.phi),
-            p.r * sinf(p.phi) * sinf(p.theta)
-        );
+        float3 pos = spherical_to_cartesian_host(p.r, p.theta, p.phi);
         glColor3f(p.color, p.color, p.color);
         glVertex3f(pos.x, pos.y, pos.z);
     }
     glEnd();
+
     glutSwapBuffers();
 }
 
-void idle() { glutPostRedisplay(); }
+void idle() {
+    glutPostRedisplay();
+}
+
+void keyDown(unsigned char key, int, int) {
+    keys[key] = true;
+}
+void keyUp(unsigned char key, int, int) {
+    keys[key] = false;
+}
 
 void mouse(int button, int state, int x, int y) {
     if (button == GLUT_LEFT_BUTTON) {
@@ -103,16 +135,13 @@ void mouse(int button, int state, int x, int y) {
 
 void motion(int x, int y) {
     if (dragging) {
-        rotY += (x - lastX);
-        rotX += (y - lastY);
+        camYaw += (x - lastX) * 0.3f;
+        camPitch -= (y - lastY) * 0.3f;
+        if (camPitch > 89.0f) camPitch = 89.0f;
+        if (camPitch < -89.0f) camPitch = -89.0f;
         lastX = x;
         lastY = y;
     }
-}
-
-void keys(unsigned char key, int, int) {
-    if (key == 'w') zoom += 5.0f;
-    if (key == 's') zoom -= 5.0f;
 }
 
 void init_cuda() {
@@ -126,21 +155,22 @@ int main(int argc, char** argv) {
     glutInit(&argc, argv);
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH);
     glutInitWindowSize(WIDTH, HEIGHT);
-    glutCreateWindow("Inverted Schwarzschild 3D - CUDA");
+    glutCreateWindow("Inverted Schwarzschild 3D - Free Camera");
 
     glEnable(GL_DEPTH_TEST);
     glClearColor(0, 0, 0, 1);
     glPointSize(1.0f);
 
     glMatrixMode(GL_PROJECTION);
-    gluPerspective(60.0, (float)WIDTH / HEIGHT, 0.1, 1000.0);
+    gluPerspective(60.0, (float)WIDTH / HEIGHT, 0.1, 2000.0);
     glMatrixMode(GL_MODELVIEW);
 
     glutDisplayFunc(display);
     glutIdleFunc(idle);
+    glutKeyboardFunc(keyDown);
+    glutKeyboardUpFunc(keyUp);
     glutMouseFunc(mouse);
     glutMotionFunc(motion);
-    glutKeyboardFunc(keys);
 
     init_cuda();
     glutMainLoop();
