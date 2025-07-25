@@ -1,5 +1,3 @@
-<img width="1923" height="1087" alt="image" src="https://github.com/user-attachments/assets/80a16ea7-8fa5-4b71-9a51-4adf7af6e18c" />
-
 # inverse singularity
 
 Maybe it all started with an inverse singularity
