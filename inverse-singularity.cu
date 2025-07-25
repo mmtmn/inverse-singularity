@@ -5,8 +5,8 @@
 #include <curand_kernel.h>
 
 const int WIDTH = 1920, HEIGHT = 1080;
-const int NUM_PARTICLES = 99999;
-const float SCHWARZSCHILD_R = 0.1f;
+const int NUM_PARTICLES = 9999999;
+const float SCHWARZSCHILD_R = 1.0f;
 
 struct Particle {
     float r, theta, v;
@@ -49,7 +49,7 @@ void display() {
     glClear(GL_COLOR_BUFFER_BIT);
     glBegin(GL_POINTS);
 
-    Particle particles[NUM_PARTICLES];
+    static Particle* particles = new Particle[NUM_PARTICLES];
     cudaMemcpy(particles, d_particles, NUM_PARTICLES * sizeof(Particle), cudaMemcpyDeviceToHost);
 
     for (int i = 0; i < NUM_PARTICLES; ++i) {
