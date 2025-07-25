@@ -1,8 +1,6 @@
 # inverse singularity
 
-Maybe it all started with an inverse singularity
-
-nvcc -O3 -o inverse-singularity inverse-singularity.cu -lGL -lGLU -lglut
+***Maybe it all started with an inverse singularity.***
 
 If you write the opposite of schwarzschild's black hole equation you get this:
 
