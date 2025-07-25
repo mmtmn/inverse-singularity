@@ -11,3 +11,7 @@ If you write the opposite of schwarzschild's black hole equation you get this:
 for the inverted schwarzschild:
 
 <img width="1044" height="151" alt="image" src="https://github.com/user-attachments/assets/e0bbffab-1fae-4218-9b91-ea42d9002094" />
+
+<img width="2048" height="1040" alt="image" src="https://github.com/user-attachments/assets/fce6ac06-1e39-42f2-8bbe-6f2d5ab1bc1f" />
+
+<img width="2048" height="1040" alt="image" src="https://github.com/user-attachments/assets/e64d293f-c4e0-41e1-a450-a7918384c738" />
